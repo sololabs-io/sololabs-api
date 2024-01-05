@@ -42,6 +42,7 @@
     "mixpanel": "^0.18.0",
     "mongoose": "^6.0.5",
     "multer": "^1.4.3",
+    "nanoid": "^5.0.4",
     "node-cron": "^3.0.0",
     "reflect-metadata": "^0.1.10",
     "tweetnacl": "^1.0.3",
@@ -49,7 +50,6 @@
   },
   "devDependencies": {
     "@types/bs58": "^4.0.1",
-    "@types/node-cron": "^3.0.0",
     "@types/cors": "^2.8.9",
     "@types/express": "^4.17.9",
     "@types/express-busboy": "^8.0.0",
@@ -57,6 +57,7 @@
     "@types/express-jwt": "0.0.42",
     "@types/jsonwebtoken": "^8.5.0",
     "@types/multer": "^1.4.7",
+    "@types/node-cron": "^3.0.0",
     "rimraf": "^3.0.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.3"

@@ -14,12 +14,15 @@ import { MigrationManager } from './services/MigrationManager';
 import { MixpanelManager } from './services/analytics/MixpanelManager';
 import { cleanRouter } from './routes/v1/Clean';
 import { Clean } from './entities/Clean';
+import { Auth } from './entities/auth/Auth';
+import { authRouter } from './routes/v1/Auth';
 
 const app = express();
 app.use(json());
 app.use(cors());
 
 if (process.env.API_ENABLED == 'true'){
+    app.use(authRouter);
     app.use(cleanRouter);
 }
 
@@ -33,6 +36,7 @@ const start = async () => {
     await mongoose.connect(process.env.MONGODB_CONNECTION_URL!);
     console.log('Connected to mongodb!');
 
+    await Auth.syncIndexes();
     await Clean.syncIndexes();
 
     await MixpanelManager.init();
