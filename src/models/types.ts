@@ -28,3 +28,20 @@ export interface WalletModel {
   publicKey: string; 
   privateKey: number[];
 }
+
+export enum AssetType {
+  pNFT = 'pNFT',
+  NFT = 'NFT',
+  cNFT = 'cNFT',
+  SOL = 'SOL',
+  SPL = 'SPL',
+  UNKNOWN = 'UNKNOWN'
+}
+
+export interface Asset {
+  id: string;
+  type: AssetType;
+  title: string;
+  image?: string;
+  isLocked?: boolean;
+}

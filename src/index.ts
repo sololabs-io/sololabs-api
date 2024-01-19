@@ -16,6 +16,9 @@ import { cleanRouter } from './routes/v1/Clean';
 import { Clean } from './entities/Clean';
 import { Auth } from './entities/auth/Auth';
 import { authRouter } from './routes/v1/Auth';
+import { Airdrop } from './entities/airdrop/Airdrop';
+import { AirdropItem } from './entities/airdrop/AirdropItem';
+import { AirdropManager } from './services/managers/AirdropManager';
 
 const app = express();
 app.use(json());
@@ -38,6 +41,8 @@ const start = async () => {
 
     await Auth.syncIndexes();
     await Clean.syncIndexes();
+    await Airdrop.syncIndexes();
+    await AirdropItem.syncIndexes();
 
     await MixpanelManager.init();
     await MigrationManager.migrate();
@@ -55,6 +60,7 @@ const setupCron = async () => {
         cron.schedule('*/3 * * * * *', () => {
             //TODO: don't do this. use Helius webhooks
             // CleanManager.processProcessingTransactions();
+            // AirdropManager.processProcessingTransactions();
         });
     }
 }

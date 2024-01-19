@@ -12,11 +12,9 @@ import { transferSol } from "@metaplex-foundation/mpl-toolbox";
 import { fromWeb3JsPublicKey, toWeb3JsLegacyTransaction } from "@metaplex-foundation/umi-web3js-adapters";
 import { WalletModel } from "../../models/types";
 import base58 from "bs58";
-
-export interface CreateEscrowTransactionResponse {
-    tx: string,
-    blockhash: string,
-}
+import { HeliusAsset } from "./HeliusTypes";
+import { IAirdropItem } from "../../entities/airdrop/AirdropItem";
+import { IAirdrop } from "../../entities/airdrop/Airdrop";
 
 export interface CreateTransactionResponse {
     tx: web3.Transaction,
@@ -280,32 +278,38 @@ export class SolanaManager {
         return {tx: web3jsTransaction, blockhash: blockhash};
     }
     
-    static async createSplTransferInstructions(web3Conn: web3.Connection, splTokenMintPublicKey: web3.PublicKey, amount: number, decimals: number, fromPublicKey: web3.PublicKey, toPublicKey: web3.PublicKey, feePayerPublicKey: web3.PublicKey): Promise<web3.TransactionInstruction[]>{
-        const fromTokenAddress = await spl.getAssociatedTokenAddress(splTokenMintPublicKey, fromPublicKey);
-        const toTokenAddress = await spl.getAssociatedTokenAddress(splTokenMintPublicKey, toPublicKey);
+    static async createSplTransferInstructions(web3Conn: web3.Connection, splTokenMintPublicKey: web3.PublicKey, amount: number, decimals: number, fromPublicKey: web3.PublicKey, toPublicKey: web3.PublicKey, feePayerPublicKey: web3.PublicKey): Promise<web3.TransactionInstruction[] | undefined>{
+        try {
+            const fromTokenAddress = await spl.getAssociatedTokenAddress(splTokenMintPublicKey, fromPublicKey);
+            const toTokenAddress = await spl.getAssociatedTokenAddress(splTokenMintPublicKey, toPublicKey);
 
-        const instructions: web3.TransactionInstruction[] = [];
+            const instructions: web3.TransactionInstruction[] = [];
 
-        const instruction1 = await this.getInstrucionToCreateTokenAccount(web3Conn, splTokenMintPublicKey, fromTokenAddress, fromPublicKey, feePayerPublicKey);
-        if (instruction1 != undefined){
-            instructions.push(instruction1);
+            const instruction1 = await this.getInstrucionToCreateTokenAccount(web3Conn, splTokenMintPublicKey, fromTokenAddress, fromPublicKey, feePayerPublicKey);
+            if (instruction1 != undefined){
+                instructions.push(instruction1);
+            }
+
+            const instruction2 = await this.getInstrucionToCreateTokenAccount(web3Conn, splTokenMintPublicKey, toTokenAddress, toPublicKey, feePayerPublicKey);
+            if (instruction2 != undefined){
+                instructions.push(instruction2);
+            }
+
+            instructions.push(
+                spl.createTransferInstruction(
+                    fromTokenAddress, 
+                    toTokenAddress, 
+                    fromPublicKey, 
+                    amount * 10**decimals
+                )
+            );
+        
+            return instructions;
         }
-
-        const instruction2 = await this.getInstrucionToCreateTokenAccount(web3Conn, splTokenMintPublicKey, toTokenAddress, toPublicKey, feePayerPublicKey);
-        if (instruction2 != undefined){
-            instructions.push(instruction2);
+        catch (err: any) {
+            console.error(err.message);
         }
-
-        instructions.push(
-            spl.createTransferInstruction(
-                fromTokenAddress, 
-                toTokenAddress, 
-                fromPublicKey, 
-                amount * 10**decimals
-            )
-        );
-    
-        return instructions;
+        return undefined;
     }  
 
     static async getInstrucionToCreateTokenAccount(
@@ -502,6 +506,139 @@ export class SolanaManager {
         }
 
         return amount / web3.LAMPORTS_PER_SOL;
+    }
+
+    static async createBurnAssetTransaction(web3Conn: web3.Connection, asset: HeliusAsset, blockhash?: web3.BlockhashWithExpiryBlockHeight): Promise<CreateTransactionResponse | undefined>{
+        console.log('----- createBurnAssetTransaction -----');
+        const ownerWalletAddress = asset.ownership.owner;
+        const soloFeeWalletAddress = process.env.FEE_WALLET_ADDRESS!;
+
+        const metaplex = new Metaplex(web3Conn);
+        const umi = createUmi(process.env.SOLANA_RPC!);
+        umi.use(mplTokenMetadata());
+        const ownerSigner = createNoopSigner(publicKey(ownerWalletAddress));
+        umi.use(signerIdentity(ownerSigner));
+        let transactionBuilder = new TransactionBuilder();
+
+
+        //TODO: implement burning for NFT & pNFT
+        //TODO: implement burning for cNFT
+        //TODO: implement burning for SPL tokens
+
+        transactionBuilder = transactionBuilder.add(
+            transferSol(umi, {
+                source: ownerSigner,
+                destination: publicKey(soloFeeWalletAddress),
+                amount: sol(0.001),
+            })
+        );
+
+        if (!blockhash){
+            blockhash = await web3Conn.getLatestBlockhash();
+        }
+        transactionBuilder = transactionBuilder.setFeePayer(ownerSigner);
+        transactionBuilder = transactionBuilder.setBlockhash(blockhash.blockhash);
+        const transaction = transactionBuilder.build(umi);
+        const web3jsTransaction = toWeb3JsLegacyTransaction(transaction);
+
+        return {tx: web3jsTransaction, blockhash: blockhash};
+    }
+
+    static async createAirdropItemTransaction(web3Conn: web3.Connection, item: IAirdropItem, airdrop: IAirdrop): Promise<CreateTransactionResponse | undefined>{
+        const blockhash = await web3Conn.getLatestBlockhash();
+
+        const transaction = new web3.Transaction();
+        transaction.feePayer = new web3.PublicKey(airdrop.sender.publicKey);
+        transaction.recentBlockhash = blockhash.blockhash;
+        
+        const splTokenMintPublicKey = new web3.PublicKey(airdrop.mintToken);
+
+        const instructions = await this.createSplTransferInstructions(
+            web3Conn, 
+            splTokenMintPublicKey, 
+            item.amount, 
+            airdrop.decimals, 
+            new web3.PublicKey(airdrop.sender.publicKey), 
+            new web3.PublicKey(item.walletAddress), 
+            new web3.PublicKey(airdrop.sender.publicKey)
+        );
+
+        if (instructions == undefined){
+            return undefined;
+        }
+
+        transaction.add(
+            ...instructions
+        );
+
+        const feeInstruction = this.createFeeInstruction(airdrop.sender.publicKey);
+        if (feeInstruction){
+            transaction.add(feeInstruction);
+        }
+
+        return {tx: transaction, blockhash: blockhash};
+    }
+
+    static createFeeInstruction(walletAddress: string, fee: number = 0.001): web3.TransactionInstruction | undefined {
+        //TODO: remove this return
+        return undefined;
+
+        if (!process.env.FEE_WALLET_ADDRESS){
+            return undefined;
+        }
+
+        const soloFeeWalletAddress = process.env.FEE_WALLET_ADDRESS!;
+        return web3.SystemProgram.transfer({
+            fromPubkey: new web3.PublicKey(walletAddress),
+            toPubkey: new web3.PublicKey(soloFeeWalletAddress),
+            lamports: fee * web3.LAMPORTS_PER_SOL,
+        })
+    }
+
+    static async getSplTokenHoldersSnapshot(mintAddress: string): Promise<{walletAddress: string, amount: number}[]> {
+        const holders: {walletAddress: string, amount: number}[] = [];
+
+        try {
+            let response = await axios.post(process.env.SOLANA_RPC!, {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getProgramAccounts",
+                "params": [
+                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                    {
+                        "encoding": "jsonParsed",
+                        "filters": [
+                            {
+                                "dataSize": 165
+                            },
+                            {
+                                "memcmp": {
+                                    "offset": 0,
+                                    "bytes": mintAddress
+                                }
+                            }
+                        ]
+                    }
+                ]
+            });
+            console.log('Total holders: ', response.data.result.length);
+            
+            for (const item of response.data.result) {
+                const holder = {
+                    walletAddress: item.account.data.parsed.info.owner,
+                    amount: +item.account.data.parsed.info.tokenAmount.uiAmount,
+                };
+
+                if (holder.amount > 0){
+                    holders.push(holder);
+                }
+            }
+
+        } catch (e) {
+            console.log(`Error getting wallets. ${e}`);
+        }
+
+        return holders;
     }
 
 }

@@ -1,6 +1,7 @@
 import { Keypair } from '@solana/web3.js';
 import { Helius, MintApiRequest } from "helius-sdk";
 import { HeliusAsset, MintApiResult } from './HeliusTypes';
+import { Asset, AssetType } from '../../models/types';
 
 export class HeliusManager {
 
@@ -108,6 +109,59 @@ export class HeliusManager {
         const { result } = await response.json();
         return result;
     };
+
+    static parseAssets(assets: HeliusAsset[]): Asset[] {
+        const parsedAssets: Asset[] = [];
+
+        for (const asset of assets){
+            const parsedAsset = this.parseAsset(asset);
+            if (parsedAsset) {
+                parsedAssets.push(parsedAsset);
+            }
+        }
+
+        return parsedAssets;
+    }
+
+    static parseAsset(asset: HeliusAsset): Asset | undefined {
+        console.log('asset', JSON.stringify(asset));
+
+        if (asset.burnt) { return undefined; }
+
+        let assetType = AssetType.UNKNOWN;
+        if (asset.interface == 'ProgrammableNFT'){
+            assetType = AssetType.pNFT;
+        }
+        else if (asset.compression.compressed){
+            assetType = AssetType.cNFT;
+        }
+        else if (asset.interface == 'Custom'){
+            assetType = AssetType.NFT;
+        }
+        else if (asset.interface == 'V1_NFT'){
+            assetType = AssetType.NFT;
+        }
+
+        const parsedAsset: Asset = {
+            id: asset.id,
+            type: assetType,
+            title: '',
+            image: '',
+            isLocked: this.isAssetLocked(asset),
+        };
+
+        return parsedAsset;
+    }
+
+    static isAssetLocked(asset: HeliusAsset): boolean {
+        if (asset.interface == 'ProgrammableNFT'){
+            return asset.ownership.delegated;
+        }
+        else {
+            return asset.ownership.frozen;
+        }
+    }
+
 
 
 }
