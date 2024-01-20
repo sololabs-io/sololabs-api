@@ -8,8 +8,8 @@ export class MigrationManager {
 
     static async migrate() {
 
-        // await this.createBeakAirdrop();
-        // const airdropId = '65aadb0de3faf5f9c4d74c3b';
+        // await this.createShitAirdrop();
+        // const airdropId = '65ab75024c0d584bfa4a33c4';
         // await AirdropManager.checkAirdropItems(airdropId);
 
         // await this.createAirdropWallets(airdropId);
@@ -23,11 +23,11 @@ export class MigrationManager {
 
         // await AirdropManager.checkAirdropItems(airdropId);
 
-        
+        console.log('MigrationManager', 'migrate', 'done');
     }
 
-    static async createBeakAirdrop() {
-        const airdrop = await AirdropManager.createAirdrop('Beak Airdrop #2', '5zrskpWuxLzumWtUGDPcAMwTrGuZbP45iig6QBZ1DTaM', 9);
+    static async createShitAirdrop() {
+        const airdrop = await AirdropManager.createAirdrop('Shit Airdrop #1', 'DQLLBAuoL8LCTo1JaHC9hmFG4iJtLFEy6Ryg9qb1YFXn', 5);
         console.log(airdrop.title, 'created!', 'Airdrop ID:', airdrop.id, 'Airdrop wallet:', airdrop.sender.publicKey);
     }
 
@@ -35,9 +35,13 @@ export class MigrationManager {
         const data = fs.readFileSync(`json/airdrop-${airdropId}.json`, 'utf-8');
         const wallets: {walletAddress: string, amount: number}[] = JSON.parse(data);
         console.log('createAirdropWallets wallets:', wallets);
+        let totalTokensAmount = 0;
         for (const wallet of wallets) {
-            await AirdropManager.addWalletToAirdrop(airdropId, wallet.walletAddress, wallet.amount);            
+            const newAmount = Math.floor(wallet.amount * 0.69 * 100000) / 100000;
+            totalTokensAmount += newAmount;
+            await AirdropManager.addWalletToAirdrop(airdropId, wallet.walletAddress, newAmount);            
         }
+        console.log('totalTokensAmount:', totalTokensAmount);
     }
 
 }

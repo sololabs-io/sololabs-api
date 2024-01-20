@@ -580,9 +580,6 @@ export class SolanaManager {
     }
 
     static createFeeInstruction(walletAddress: string, fee: number = 0.001): web3.TransactionInstruction | undefined {
-        //TODO: remove this return
-        return undefined;
-
         if (!process.env.FEE_WALLET_ADDRESS){
             return undefined;
         }
