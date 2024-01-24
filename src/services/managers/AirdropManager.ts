@@ -104,50 +104,126 @@ export class AirdropManager {
         }
     }
 
+    // static async processProcessingTransactions(){
+    //     const airdrops = await Airdrop.find({isFunded: true, isCompleted: false});
+    //     const airdropsIds = airdrops.map(a => a.id.toString());
+
+    //     const items = await AirdropItem.find({airdropId: {$in: airdropsIds}, 'fund.status': Status.PROCESSING, 'fund.signature': {$ne: undefined}}).exec();
+    //     if (items && items.length>0){
+    //         const signaturesMatrix: string[][] = [[]];
+
+    //         for (const payment of items) {
+    //             const signatures = signaturesMatrix[signaturesMatrix.length-1];
+    //             if (signatures.length >= 10){
+    //                 signaturesMatrix.push([]);
+    //             }
+    //             signaturesMatrix[signaturesMatrix.length-1].push(payment.fund!.signature!);
+    //         }
+
+    //         console.log('AirdropManager', 'processProcessingTransactions', 'signaturesMatrix', signaturesMatrix);
+
+    //         let signatureIndex = 0;
+    //         for (const signatures of signaturesMatrix) {
+    //             console.log('AirdropManager', 'signatureIndex', signatureIndex);
+    //             signatureIndex++;
+    //             try {
+    //                 if (signatures.length > 0){
+    //                     const web3Conn = newConnection();
+
+    //                     const txs = await web3Conn.getParsedTransactions(signatures);
+
+    //                     if (txs.length != signatures.length){
+    //                         console.error('!!! txs.length != signatures.length');
+    //                         continue;
+    //                     }
+
+    //                     for (let index = 0; index < txs.length; index++) {
+    //                         const tx = txs[index];
+    //                         const signature = signatures[index];
+    //                         const item = items.find(i => i.fund?.signature == signature);
+    //                         // const item = items[index];
+                        
+    //                         if (!item){
+    //                             console.error('item not found');
+    //                             continue;
+    //                         }
+
+    //                         if (tx == null) {
+    //                             // if (item.fund.blockhash){
+    //                             //     const isBlockhashValid = await SolanaManager.isBlockhashValid(item.fund.blockhash);
+
+    //                             //     if (isBlockhashValid == false){
+    //                             //         item.fund.triesCount = (item.fund.triesCount == undefined) ? 1 : item.fund.triesCount+1;
+
+    //                             //         if (item.fund.triesCount > 360){
+    //                             //             item.fund.status = Status.ERROR;
+    //                             //         }
+
+    //                             //         await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': item.fund.status, 'fund.triesCount': item.fund.triesCount} });
+    //                             //     }
+    //                             // }
+    //                         }
+    //                         else {
+    //                             // all good
+    //                             await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': Status.COMPLETED} });
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //             catch (err) {
+    //                 console.log(err);
+    //             }
+    //             await Helpers.sleep(0.1);
+    //         }
+    //     }
+    // }
+
     static async processProcessingTransactions(){
-        const items = await AirdropItem.find({'fund.status': Status.PROCESSING, 'fund.signature': {$ne: undefined}}).limit(50).exec();
+        const airdrops = await Airdrop.find({isFunded: true, isCompleted: false});
+        const airdropsIds = airdrops.map(a => a.id.toString());
+        const web3Conn = newConnection();
+
+        const items = await AirdropItem.find({airdropId: {$in: airdropsIds}, 'fund.status': Status.PROCESSING, 'fund.signature': {$ne: undefined}}).exec();
         if (items && items.length>0){
-            const signatures: string[] = [];
+            let index = 0;
+            for (const item of items) {
+                console.log('AirdropManager', 'index', index);
+                index++;
+                try {
+                    const signature = item.fund?.signature;
+                    if (signature){
+                        const tx = await web3Conn.getParsedTransaction(signature);
 
-            for (const payment of items) {
-                signatures.push(payment.fund!.signature!);
-            }
+                        if (tx == null) {
+                            console.log('tx == null');
+                            // if (item.fund.blockhash){
+                            //     const isBlockhashValid = await SolanaManager.isBlockhashValid(item.fund.blockhash);
 
-            console.log('AirdropManager', 'processProcessingTransactions', 'signatures', signatures);
+                            //     if (isBlockhashValid == false){
+                            //         item.fund.triesCount = (item.fund.triesCount == undefined) ? 1 : item.fund.triesCount+1;
 
-            if (signatures.length > 0){
-                const web3Conn = newConnection();
+                            //         if (item.fund.triesCount > 360){
+                            //             item.fund.status = Status.ERROR;
+                            //         }
 
-                const txs = await web3Conn.getParsedTransactions(signatures);
-
-                for (let index = 0; index < txs.length; index++) {
-                    const tx = txs[index];
-                    const item = items[index];
-                   
-                    if (!item.fund){
-                        continue;
-                    }
-
-                    if (tx == null) {
-                        if (item.fund.blockhash){
-                            const isBlockhashValid = await SolanaManager.isBlockhashValid(item.fund.blockhash);
-
-                            if (isBlockhashValid == false){
-                                item.fund.triesCount = (item.fund.triesCount == undefined) ? 1 : item.fund.triesCount+1;
-
-                                if (item.fund.triesCount > 360){
-                                    item.fund.status = Status.ERROR;
-                                }
-
-                                await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': item.fund.status, 'fund.triesCount': item.fund.triesCount} });
-                            }
+                            //         await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': item.fund.status, 'fund.triesCount': item.fund.triesCount} });
+                            //     }
+                            // }
+                        }
+                        else if (tx?.meta?.err){
+                            console.log('tx.meta.err');
+                        }
+                        else {
+                            // all good
+                            await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': Status.COMPLETED} });
                         }
                     }
-                    else {
-                        // all good
-                        await AirdropItem.findByIdAndUpdate(item.id, { $set: {'fund.status': Status.COMPLETED} });
-                    }
                 }
+                catch (err) {
+                    console.log(err);
+                }
+
+                await Helpers.sleep(0.05);
             }
         }
     }

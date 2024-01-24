@@ -124,6 +124,7 @@ export class HeliusManager {
     }
 
     static parseAsset(asset: HeliusAsset): Asset | undefined {
+        const imagesMimeTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
         console.log('asset', JSON.stringify(asset));
 
         if (asset.burnt) { return undefined; }
@@ -141,13 +142,19 @@ export class HeliusManager {
         else if (asset.interface == 'V1_NFT'){
             assetType = AssetType.NFT;
         }
+        else {
+            return undefined;
+        }
+
+        const collection = asset.grouping.find(g => g.group_key == 'collection');
 
         const parsedAsset: Asset = {
             id: asset.id,
             type: assetType,
-            title: '',
-            image: '',
+            title: asset.content.metadata.name.trim(),
+            image: asset.content.files.find(f => imagesMimeTypes.includes(f.mime))?.uri,
             isLocked: this.isAssetLocked(asset),
+            collection: collection?.group_value ? { id: collection?.group_value } : undefined,
         };
 
         return parsedAsset;

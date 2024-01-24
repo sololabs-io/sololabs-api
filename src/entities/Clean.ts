@@ -1,5 +1,5 @@
 import * as mongoose from 'mongoose';
-import { TransactionStatus, WalletModel } from '../models/types';
+import { AssetType, TransactionStatus, WalletModel } from '../models/types';
 
 export let Schema = mongoose.Schema;
 export let ObjectId = mongoose.Schema.Types.ObjectId;
@@ -8,13 +8,10 @@ export let Mixed = mongoose.Schema.Types.Mixed;
 export interface IClean extends mongoose.Document {
     walletAddress: string;
     mintToken: string;
+    assetType: AssetType;
     fund?: TransactionStatus;
 
-    info?: {
-        ip?: string
-    };
-
-    signerWallet?: WalletModel;
+    signerWallet: WalletModel;
 
     updatedAt?: Date;
     createdAt?: Date;
@@ -23,9 +20,8 @@ export interface IClean extends mongoose.Document {
 export const CleanSchema = new mongoose.Schema<IClean>({
     walletAddress: { type: String },
     mintToken: { type: String },
+    assetType: { type: String },
     fund: { type: Object },
-
-    info: { type: Object },
 
     signerWallet: { type: Object },
 

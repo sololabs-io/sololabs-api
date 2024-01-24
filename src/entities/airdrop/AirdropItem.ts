@@ -29,6 +29,7 @@ AirdropItemSchema.index({ airdropId: 1, walletAddress: 1 }, { unique: true });
 AirdropItemSchema.index({ airdropId: 1 });
 AirdropItemSchema.index({ airdropId: 1, 'fund.status': 1 });
 AirdropItemSchema.index({ 'fund.status': 1, 'fund.signature': 1 });
+AirdropItemSchema.index({ airdropId: 1, 'fund.status': 1, 'fund.signature': 1 });
 
 AirdropItemSchema.pre('save', function (next) {
     this.updatedAt = new Date();

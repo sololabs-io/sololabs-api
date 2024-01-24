@@ -44,4 +44,14 @@ export interface Asset {
   title: string;
   image?: string;
   isLocked?: boolean;
+  collection?: {
+    id: string,
+    title?: string,
+  };
+}
+
+export interface InfoModel { 
+    title: string; 
+    subtitle: string;
+    color: string;
 }

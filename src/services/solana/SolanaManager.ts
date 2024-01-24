@@ -3,12 +3,12 @@ import * as web3 from '@solana/web3.js';
 import * as spl from '@solana/spl-token';
 import { newConnection } from "../../lib/solana";
 import axios from "axios";
-import { Metaplex, walletAdapterIdentity as mpljsWalletAdapterIdentity } from "@metaplex-foundation/js";
+import { Metaplex, walletAdapterIdentity as mpljsWalletAdapterIdentity, token } from "@metaplex-foundation/js";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplTokenMetadata, TokenStandard } from "@metaplex-foundation/mpl-token-metadata";
 import { createNoopSigner, createSignerFromKeypair, publicKey, signerIdentity, sol, TransactionBuilder, unwrapOption } from "@metaplex-foundation/umi";
 import * as mpl from '@metaplex-foundation/mpl-token-metadata';
-import { transferSol } from "@metaplex-foundation/mpl-toolbox";
+import { addMemo, transferSol } from "@metaplex-foundation/mpl-toolbox";
 import { fromWeb3JsPublicKey, toWeb3JsLegacyTransaction } from "@metaplex-foundation/umi-web3js-adapters";
 import { WalletModel } from "../../models/types";
 import base58 from "bs58";
@@ -113,7 +113,7 @@ export class SolanaManager {
             ]
         });
 
-        console.log('isBlockhashValid', data);
+        // console.log('isBlockhashValid', data);
 
         if (data!=undefined && data.result!=undefined && data.result.value!=undefined){
             return data.result.value;
@@ -300,7 +300,7 @@ export class SolanaManager {
                     fromTokenAddress, 
                     toTokenAddress, 
                     fromPublicKey, 
-                    amount * 10**decimals
+                    Math.floor(amount * 10**decimals)
                 )
             );
         
@@ -508,7 +508,7 @@ export class SolanaManager {
         return amount / web3.LAMPORTS_PER_SOL;
     }
 
-    static async createBurnAssetTransaction(web3Conn: web3.Connection, asset: HeliusAsset, blockhash?: web3.BlockhashWithExpiryBlockHeight): Promise<CreateTransactionResponse | undefined>{
+    static async createBurnAssetTransaction(web3Conn: web3.Connection, asset: HeliusAsset, signer: web3.Keypair, memo?: string, blockhash?: web3.BlockhashWithExpiryBlockHeight): Promise<CreateTransactionResponse | undefined>{
         console.log('----- createBurnAssetTransaction -----');
         const ownerWalletAddress = asset.ownership.owner;
         const soloFeeWalletAddress = process.env.FEE_WALLET_ADDRESS!;
@@ -520,18 +520,54 @@ export class SolanaManager {
         umi.use(signerIdentity(ownerSigner));
         let transactionBuilder = new TransactionBuilder();
 
-
-        //TODO: implement burning for NFT & pNFT
-        //TODO: implement burning for cNFT
         //TODO: implement burning for SPL tokens
+
+        let tokenStandard: TokenStandard = TokenStandard.NonFungible;
+        if (asset.interface == 'ProgrammableNFT'){
+            tokenStandard = TokenStandard.ProgrammableNonFungible;
+        }
+        else if (asset.interface == 'V1_NFT' || asset.interface == 'Custom'){
+            tokenStandard = TokenStandard.NonFungible;
+        }
+
+        if (asset.compression.compressed){
+            //TODO: implement burning for cNFT
+        }
+        else {
+            // implement burning for NFT & pNFT
+            transactionBuilder = transactionBuilder.add(
+                mpl.burnV1(umi, {
+                    mint: publicKey(asset.id),
+                    authority: ownerSigner,
+                    tokenOwner: publicKey(ownerWalletAddress),
+                    tokenStandard: tokenStandard,
+                })
+            );
+        }
 
         transactionBuilder = transactionBuilder.add(
             transferSol(umi, {
-                source: ownerSigner,
+                source: createNoopSigner(publicKey(ownerWalletAddress)),
                 destination: publicKey(soloFeeWalletAddress),
                 amount: sol(0.001),
             })
         );
+
+        transactionBuilder = transactionBuilder.add(
+            transferSol(umi, {
+                source: createNoopSigner(publicKey(signer.publicKey)),
+                destination: publicKey(signer.publicKey),
+                amount: sol(0),
+            })
+        );
+
+        if (memo){
+            transactionBuilder = transactionBuilder.add(
+                addMemo(umi, {
+                    memo: memo,
+                })
+            );
+        }
 
         if (!blockhash){
             blockhash = await web3Conn.getLatestBlockhash();
@@ -540,6 +576,8 @@ export class SolanaManager {
         transactionBuilder = transactionBuilder.setBlockhash(blockhash.blockhash);
         const transaction = transactionBuilder.build(umi);
         const web3jsTransaction = toWeb3JsLegacyTransaction(transaction);
+
+        web3jsTransaction.partialSign(signer);
 
         return {tx: web3jsTransaction, blockhash: blockhash};
     }
