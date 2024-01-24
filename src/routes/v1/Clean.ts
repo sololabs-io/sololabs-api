@@ -14,6 +14,9 @@ const router = express.Router();
 router.get(
     '/api/v1/clean',
     async (req: Request, res: Response) => {
+
+        //TODO: get info from db
+
         const items: InfoModel[] = [];
         items.push({ title: '123', subtitle: 'NFTs', color: '#1AFB9C' });
         items.push({ title: '1,402', subtitle: 'cNFTs', color: '#FFEB3B' });
