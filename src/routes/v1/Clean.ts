@@ -78,6 +78,9 @@ router.get(
         }
 
         for (const asset of assets) {
+            asset.itemsCount = 1;
+            asset.claimAmount = 0.002; //TODO: get from tokens accounts or detect if that's NFT/pNFT/cNFT/...
+
             const assetCollectionId = asset.collection?.id || 'other';
             const assetCollectionTitle = asset.collection?.title || 'Other';
 

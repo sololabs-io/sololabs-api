@@ -48,6 +48,8 @@ export interface Asset {
     id: string,
     title?: string,
   };
+  itemsCount?: number;
+  claimAmount?: number;
 }
 
 export interface InfoModel { 
